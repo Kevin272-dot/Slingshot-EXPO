@@ -43,7 +43,7 @@ function PlayContent() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name }),
         })
-      } catch {}
+      } catch (e) { console.error('Failed to save session:', e) }
     }
   }, [])
 

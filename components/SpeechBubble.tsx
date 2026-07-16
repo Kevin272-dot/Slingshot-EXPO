@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface BubbleData {
   id: string
@@ -12,53 +12,53 @@ interface BubbleData {
 interface FloatingBubble extends BubbleData {
   x: number
   y: number
-  vx: number
-  vy: number
+  angle: number
+  orbitSpeed: number
+  orbitRadius: number
+  centerX: number
+  centerY: number
   rotation: number
   vr: number
   scale: number
+  targetScale: number
   opacity: number
-  entering: boolean
-  size: 'sm' | 'md' | 'lg'
+  targetOpacity: number
+  size: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  depth: number
 }
 
-function SpeechBubbleShape({ name, comment, size }: { name: string; comment: string; size: 'sm' | 'md' | 'lg' }) {
-  const sizeClasses = {
-    sm: 'px-3 py-2 max-w-[130px] min-w-[80px]',
-    md: 'px-4 py-3 max-w-[160px] min-w-[100px]',
-    lg: 'px-5 py-3.5 max-w-[190px] min-w-[120px]',
-  }
+const CLOUD_COLORS = [
+  { bg: 'rgba(46,125,50,0.85)', border: 'rgba(76,175,80,0.4)' },
+  { bg: 'rgba(27,94,32,0.9)', border: 'rgba(56,142,60,0.4)' },
+  { bg: 'rgba(51,105,30,0.85)', border: 'rgba(85,139,47,0.4)' },
+  { bg: 'rgba(46,125,50,0.8)', border: 'rgba(102,187,106,0.4)' },
+  { bg: 'rgba(67,160,71,0.85)', border: 'rgba(129,199,132,0.4)' },
+]
 
-  const textSizes = {
-    sm: { name: 'text-xs', comment: 'text-[10px]' },
-    md: { name: 'text-sm', comment: 'text-xs' },
-    lg: { name: 'text-base', comment: 'text-xs' },
-  }
+const SIZE_MAP = {
+  xs: { px: 'px-3 py-1.5', name: 'text-[10px]', comment: 'text-[9px]', minW: 70, maxW: 100 },
+  sm: { px: 'px-4 py-2', name: 'text-xs', comment: 'text-[10px]', minW: 90, maxW: 130 },
+  md: { px: 'px-5 py-2.5', name: 'text-sm', comment: 'text-xs', minW: 110, maxW: 160 },
+  lg: { px: 'px-6 py-3', name: 'text-base', comment: 'text-xs', minW: 140, maxW: 200 },
+  xl: { px: 'px-7 py-3.5', name: 'text-lg', comment: 'text-sm', minW: 170, maxW: 240 },
+}
 
-  const colors = [
-    { bg: 'linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%)', tail: 'linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)' },
-    { bg: 'linear-gradient(135deg, #1B5E20 0%, #388E3C 100%)', tail: 'linear-gradient(135deg, #388E3C 0%, #1B5E20 100%)' },
-    { bg: 'linear-gradient(135deg, #33691E 0%, #558B2F 100%)', tail: 'linear-gradient(135deg, #558B2F 0%, #33691E 100%)' },
-    { bg: 'linear-gradient(135deg, #2E7D32 0%, #66BB6A 100%)', tail: 'linear-gradient(135deg, #66BB6A 0%, #2E7D32 100%)' },
-  ]
-
-  const colorIndex = (name.charCodeAt(0) + (comment.charCodeAt(0) || 0)) % colors.length
-  const { bg, tail } = colors[colorIndex]
+function CloudBubble({ name, comment, size }: { name: string; comment: string; size: 'xs' | 'sm' | 'md' | 'lg' | 'xl' }) {
+  const s = SIZE_MAP[size]
+  const colorIdx = (name.charCodeAt(0) * 7 + (comment.charCodeAt(0) || 42)) % CLOUD_COLORS.length
+  const { bg, border } = CLOUD_COLORS[colorIdx]
 
   return (
     <div
-      className={`relative rounded-2xl text-center ${sizeClasses[size]}`}
+      className={`relative rounded-full text-center ${s.px} whitespace-nowrap`}
       style={{
         background: bg,
-        boxShadow: '0 6px 25px rgba(46, 125, 50, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255,255,255,0.15)',
+        border: `1.5px solid ${border}`,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.1)',
       }}
     >
-      <div className={`font-display font-bold text-white leading-tight ${textSizes[size].name}`}>{name}</div>
-      <div className={`text-white/80 mt-0.5 leading-tight ${textSizes[size].comment}`}>{comment}</div>
-      <div
-        className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 rounded-sm"
-        style={{ background: tail }}
-      />
+      <div className={`font-display font-bold text-white leading-tight ${s.name}`}>{name}</div>
+      <div className={`text-white/70 mt-0.5 leading-tight ${s.comment}`}>{comment}</div>
     </div>
   )
 }
@@ -66,6 +66,8 @@ function SpeechBubbleShape({ name, comment, size }: { name: string; comment: str
 export default function FloatingWall() {
   const [bubbles, setBubbles] = useState<FloatingBubble[]>([])
   const [loaded, setLoaded] = useState(false)
+  const timeRef = useRef(0)
+  const animRef = useRef<number>(0)
 
   useEffect(() => {
     async function fetchBubbles() {
@@ -76,32 +78,38 @@ export default function FloatingWall() {
 
         const w = window.innerWidth
         const h = window.innerHeight
+        const cx = w / 2
+        const cy = h / 2
 
-        const newBubbles: FloatingBubble[] = data.map((b) => {
-          const sizes: Array<'sm' | 'md' | 'lg'> = ['sm', 'md', 'lg']
-          const sizeWeights = [0.2, 0.55, 0.25]
-          const rand = Math.random()
-          let sizeIdx = 1
-          if (rand < sizeWeights[0]) sizeIdx = 0
-          else if (rand < sizeWeights[0] + sizeWeights[1]) sizeIdx = 1
-          else sizeIdx = 2
+        const sizes: Array<'xs' | 'sm' | 'md' | 'lg' | 'xl'> = ['xs', 'sm', 'sm', 'md', 'md', 'lg', 'xl']
+        const newBubbles: FloatingBubble[] = data.map((b, i) => {
+          const size = sizes[i % sizes.length]
+          const angle = Math.random() * Math.PI * 2
+          const spreadX = w * 0.38
+          const spreadY = h * 0.35
 
           return {
             ...b,
-            x: 50 + Math.random() * (w - 100),
-            y: 70 + Math.random() * (h - 140),
-            vx: (Math.random() - 0.5) * 0.4,
-            vy: (Math.random() - 0.5) * 0.4,
-            rotation: (Math.random() - 0.5) * 5,
-            vr: (Math.random() - 0.5) * 0.08,
+            x: cx + (Math.random() - 0.5) * spreadX * 2,
+            y: cy + (Math.random() - 0.5) * spreadY * 2,
+            angle,
+            orbitSpeed: (0.0003 + Math.random() * 0.0005) * (Math.random() > 0.5 ? 1 : -1),
+            orbitRadius: 15 + Math.random() * 40,
+            centerX: cx + (Math.random() - 0.5) * spreadX * 2,
+            centerY: cy + (Math.random() - 0.5) * spreadY * 2,
+            rotation: (Math.random() - 0.5) * 8,
+            vr: (Math.random() - 0.5) * 0.15,
             scale: 0,
+            targetScale: 1,
             opacity: 0,
-            entering: true,
-            size: sizes[sizeIdx],
+            targetOpacity: 0.85 + Math.random() * 0.15,
+            size,
+            depth: Math.random(),
           }
         })
 
-        setBubbles(newBubbles.slice(0, 100))
+        newBubbles.sort((a, b) => a.depth - b.depth)
+        setBubbles(newBubbles.slice(0, 80))
         setLoaded(true)
       } catch {
         setLoaded(true)
@@ -109,46 +117,57 @@ export default function FloatingWall() {
     }
 
     fetchBubbles()
-    const interval = setInterval(fetchBubbles, 3000)
+    const interval = setInterval(fetchBubbles, 5000)
     return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
     if (!loaded) return
 
-    let animId: number
-    function animate() {
+    let lastTime = performance.now()
+    function animate(now: number) {
+      const dt = Math.min(now - lastTime, 50)
+      lastTime = now
+      timeRef.current += dt
+
       setBubbles((prev) => {
-        const w = typeof window !== 'undefined' ? window.innerWidth : 800
-        const h = typeof window !== 'undefined' ? window.innerHeight : 600
+        const w = window.innerWidth
+        const h = window.innerHeight
 
         return prev.map((b) => {
-          let { x, y, vx, vy, rotation, vr, scale, opacity, entering } = b
+          const newAngle = b.angle + b.orbitSpeed * dt
+          const x = b.centerX + Math.cos(newAngle) * b.orbitRadius
+          const y = b.centerY + Math.sin(newAngle) * b.orbitRadius * 0.6
 
-          if (entering) {
-            scale = Math.min(scale + 0.05, 1)
-            opacity = Math.min(opacity + 0.035, 1)
-            if (scale >= 1) entering = false
+          const newScale = b.scale + (b.targetScale - b.scale) * 0.04
+          const newOpacity = b.opacity + (b.targetOpacity - b.opacity) * 0.04
+
+          let newRotation = b.rotation + b.vr * (dt / 16)
+          if (Math.abs(newRotation) > 10) b.vr *= -1
+
+          let newCenterX = b.centerX
+          let newCenterY = b.centerY
+          if (newCenterX < w * 0.1 || newCenterX > w * 0.9) newCenterX = w * 0.5
+          if (newCenterY < h * 0.1 || newCenterY > h * 0.9) newCenterY = h * 0.5
+
+          return {
+            ...b,
+            x, y,
+            angle: newAngle,
+            rotation: newRotation,
+            vr: b.vr,
+            scale: newScale,
+            opacity: newOpacity,
+            centerX: newCenterX,
+            centerY: newCenterY,
           }
-
-          x += vx
-          y += vy
-          rotation += vr
-
-          if (x < 15 || x > w - 15) vx *= -1
-          if (y < 15 || y > h - 15) vy *= -1
-          if (Math.abs(rotation) > 6) vr *= -1
-
-          x = Math.max(15, Math.min(w - 15, x))
-          y = Math.max(15, Math.min(h - 15, y))
-
-          return { ...b, x, y, vx, vy, rotation, vr, scale, opacity, entering }
         })
       })
-      animId = requestAnimationFrame(animate)
+
+      animRef.current = requestAnimationFrame(animate)
     }
-    animate()
-    return () => cancelAnimationFrame(animId)
+    animRef.current = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(animRef.current)
   }, [loaded])
 
   return (
@@ -156,16 +175,16 @@ export default function FloatingWall() {
       {bubbles.map((b) => (
         <div
           key={b.id}
-          className="absolute"
+          className="absolute pointer-events-none"
           style={{
             left: b.x,
             top: b.y,
             transform: `translate(-50%, -50%) scale(${b.scale}) rotate(${b.rotation}deg)`,
             opacity: b.opacity,
-            transition: b.entering ? 'none' : undefined,
+            willChange: 'transform, opacity',
           }}
         >
-          <SpeechBubbleShape name={b.name} comment={b.comment} size={b.size} />
+          <CloudBubble name={b.name} comment={b.comment} size={b.size} />
         </div>
       ))}
 

@@ -26,11 +26,15 @@ export async function POST(request: NextRequest) {
 
     const comment = getRandomHitMessage()
 
+    console.log('[Session] Creating player:', trimmedName)
+
     const player = await prisma.player.create({
       data: {
         name: trimmedName,
       },
     })
+
+    console.log('[Session] Player created:', player.id)
 
     const session = await prisma.session.create({
       data: {
@@ -41,6 +45,8 @@ export async function POST(request: NextRequest) {
       include: { player: true },
     })
 
+    console.log('[Session] Session created:', session.id)
+
     return NextResponse.json({
       id: session.id,
       name: session.player.name,
@@ -49,7 +55,7 @@ export async function POST(request: NextRequest) {
       createdAt: session.createdAt,
     })
   } catch (error) {
-    console.error('Session creation error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('[Session] ERROR:', error)
+    return NextResponse.json({ error: 'Internal server error', details: String(error) }, { status: 500 })
   }
 }
