@@ -71,7 +71,7 @@ function createScene(onResult: (hit: boolean) => void, _W: number, _H: number) {
     private gravity = 0.18
     private zeroRotation = 0
     private slotGlow!: Phaser.GameObjects.Graphics
-    private hitZone = 60
+    private hitZone = 70
     private trailDots: Phaser.GameObjects.Arc[] = []
     private rubberBand!: Phaser.GameObjects.Graphics
     private slingshotForkLeft = { x: 0, y: 0 }
@@ -90,7 +90,7 @@ function createScene(onResult: (hit: boolean) => void, _W: number, _H: number) {
       const isMobile = Math.min(w, h) < 600
 
       this.gravity = isMobile ? 0.26 : 0.18
-      this.hitZone = isMobile ? 80 : 60
+      this.hitZone = isMobile ? 90 : 70
 
       this.slingshotX = w / 2
       this.slingshotY = h - 100
@@ -289,43 +289,46 @@ function createScene(onResult: (hit: boolean) => void, _W: number, _H: number) {
     private drawLogo(w: number, h: number) {
       const tx = this.slotX
       const ty = this.slotY
+      const isMobile = Math.min(w, h) < 600
+      const s = isMobile ? 1.35 : 1
 
       const outerGlow = this.add.graphics()
       outerGlow.fillStyle(0xffffff, 0.08)
-      outerGlow.fillRoundedRect(tx - 165, ty - 72, 330, 144, 28)
+      outerGlow.fillRoundedRect(tx - 165 * s, ty - 72 * s, 330 * s, 144 * s, 28)
 
       const platform = this.add.graphics()
       platform.fillStyle(0xffffff, 0.98)
-      platform.fillRoundedRect(tx - 148, ty - 56, 296, 112, 20)
+      platform.fillRoundedRect(tx - 148 * s, ty - 56 * s, 296 * s, 112 * s, 20)
       platform.lineStyle(5, 0x2E7D32, 1)
-      platform.strokeRoundedRect(tx - 148, ty - 56, 296, 112, 20)
+      platform.strokeRoundedRect(tx - 148 * s, ty - 56 * s, 296 * s, 112 * s, 20)
 
       platform.fillStyle(0x2E7D32, 1)
-      platform.fillRoundedRect(tx - 142, ty - 50, 284, 100, 16)
+      platform.fillRoundedRect(tx - 142 * s, ty - 50 * s, 284 * s, 100 * s, 16)
 
-      this.add.text(tx - 72, ty, '18', {
-        fontSize: '56px',
+      this.add.text(tx - 72 * s, ty, '18', {
+        fontSize: `${Math.round(56 * s)}px`,
         color: '#ffffff',
         fontFamily: 'Poppins, sans-serif',
         fontStyle: 'bold',
       }).setOrigin(0.5)
 
-      this.add.text(tx + 72, ty, 'DC', {
-        fontSize: '48px',
+      this.add.text(tx + 72 * s, ty, 'DC', {
+        fontSize: `${Math.round(48 * s)}px`,
         color: '#ffffff',
         fontFamily: 'Poppins, sans-serif',
         fontStyle: 'bold',
       }).setOrigin(0.5)
 
+      const slotSize = 28 * s
       const slotBg = this.add.graphics()
       slotBg.fillStyle(0x1B5E20, 0.7)
-      slotBg.fillRoundedRect(tx - 28, ty - 28, 56, 56, 12)
-      slotBg.lineStyle(4, 0x7CFC00, 0.6)
-      slotBg.strokeRoundedRect(tx - 28, ty - 28, 56, 56, 12)
+      slotBg.fillRoundedRect(tx - slotSize, ty - slotSize, slotSize * 2, slotSize * 2, 12 * s)
+      slotBg.lineStyle(Math.round(4 * s), 0x7CFC00, 0.6)
+      slotBg.strokeRoundedRect(tx - slotSize, ty - slotSize, slotSize * 2, slotSize * 2, 12 * s)
 
       this.slotGlow = this.add.graphics()
       this.slotGlow.fillStyle(0x7CFC00, 0.12)
-      this.slotGlow.fillCircle(tx + 2, ty, 44)
+      this.slotGlow.fillCircle(tx + 2, ty, 44 * s)
       this.tweens.add({
         targets: this.slotGlow,
         alpha: { from: 0.3, to: 1 },
@@ -337,8 +340,36 @@ function createScene(onResult: (hit: boolean) => void, _W: number, _H: number) {
         ease: 'Sine.easeInOut',
       })
 
+      if (isMobile) {
+        const pulseRing = this.add.graphics()
+        pulseRing.lineStyle(3, 0x7CFC00, 0.7)
+        pulseRing.strokeCircle(tx + 2, ty, 55)
+        pulseRing.setAlpha(0)
+        this.tweens.add({
+          targets: pulseRing,
+          alpha: { from: 0.8, to: 0 },
+          scaleX: { from: 1, to: 1.8 },
+          scaleY: { from: 1, to: 1.8 },
+          duration: 1200,
+          repeat: -1,
+          ease: 'Power2',
+        })
+
+        const outerRing = this.add.graphics()
+        outerRing.lineStyle(2, 0x7CFC00, 0.35)
+        outerRing.strokeCircle(tx + 2, ty, 70)
+        this.tweens.add({
+          targets: outerRing,
+          alpha: { from: 0.2, to: 0.6 },
+          duration: 1000,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        })
+      }
+
       this.add.text(tx + 2, ty, '?', {
-        fontSize: '32px',
+        fontSize: `${Math.round(32 * s)}px`,
         color: '#7CFC00',
         fontFamily: 'Poppins, sans-serif',
         fontStyle: 'bold',
@@ -346,8 +377,8 @@ function createScene(onResult: (hit: boolean) => void, _W: number, _H: number) {
 
       const arrow = this.add.graphics()
       arrow.fillStyle(0x7CFC00, 0.4)
-      arrow.fillTriangle(tx + 2, ty + 36, tx - 8, ty + 48, tx + 12, ty + 48)
-      this.tweens.add({ targets: arrow, y: ty + 52, duration: 600, yoyo: true, repeat: -1 })
+      arrow.fillTriangle(tx + 2, ty + 36 * s, tx - 8 * s, ty + 48 * s, tx + 12 * s, ty + 48 * s)
+      this.tweens.add({ targets: arrow, y: ty + 52 * s, duration: 600, yoyo: true, repeat: -1 })
 
       this.slotX = tx + 2
       this.slotY = ty
